@@ -9,5 +9,5 @@ fi
 for i in ${@}; do
   export PATCH=/build/${i}.patch
   wget https://github.com/ggml-org/llama.cpp/pull/${i}.patch -O- > ${PATCH}
-  (cd /build/llama.cpp; git apply ${PATCH})
+  (cd /build/llama.cpp; patch -p1 ${PATCH})
 done

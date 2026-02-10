@@ -7,7 +7,8 @@ LLAMA_SWAP_VERSION = v189
 LLAMA_CPP_REPO ?= https://github.com/ggml-org/llama.cpp
 LLAMA_CPP_VERSION ?= master
 # Add PR numbers for unmerged PRs to include in this build here
-LLAMA_CPP_INCLUDE_PRS=
+# PR 18675: autoparser PR that enables toolcalling for most grammars
+LLAMA_CPP_INCLUDE_PRS=18675
 IKLLAMA_CPP_REPO ?= https://github.com/ikawrakow/ik_llama.cpp
 IKLLAMA_CPP_VERSION ?= main
 ROCM_ARCHES ?= gfx1151,gfx1200,gfx1201,gfx1100,gfx1102,gfx1030,gfx1031,gfx1032
