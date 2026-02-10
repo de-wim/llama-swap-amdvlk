@@ -74,7 +74,7 @@ def collect_libraries_recursive(
             continue
 
         if not os.path.exists(lib_path):
-            print(f"Warning: Library not found: '{lib_path}'")
+            print(f"Warning: library not found: '{lib_path}'")
             continue
 
         if lib_path in collected:

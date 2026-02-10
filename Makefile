@@ -3,7 +3,7 @@
 #LLAMA_CPP_VERSION = autoparser
 IMAGE_TAG_SUFFIX =
 
-LLAMA_SWAP_VERSION = v190
+LLAMA_SWAP_VERSION = v189
 LLAMA_CPP_REPO ?= https://github.com/ggml-org/llama.cpp
 LLAMA_CPP_VERSION ?= master
 # Add PR numbers for unmerged PRs to include in this build here

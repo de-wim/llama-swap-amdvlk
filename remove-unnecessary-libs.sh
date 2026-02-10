@@ -1,7 +1,8 @@
 #!/bin/bash
 set -eo pipefail
 
-ldd /app/llama-server*
+# ldd /app/llama-server* ||:
+# ldd /app/lib/* ||:
 
 export LD_LIBRARY_PATH=/lib64:/usr/lib:/usr/lib64:/app/lib
 NEEDED_LIBS=( $(ldd /app/llama-server* | grep '=> /app' | sed -rE 's/[^>]+>\s+([^ ]+).*/\1/') )
@@ -16,3 +17,6 @@ for lib in $(ls /app/lib/*); do
         echo "Retaining library: $lib"
     fi
 done
+
+REMAINING=$(du -sh /app/lib | cut -d' ' -f1)
+echo Shipping ${REMAINING} in libraries
