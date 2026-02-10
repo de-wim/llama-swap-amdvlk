@@ -43,29 +43,37 @@ RUN pacman -S --noconfirm cuda
 RUN cd /build/llama.cpp && cmake -B build-cuda -DCMAKE_INSTALL_PREFIX=/opt/llama.cpp -DCMAKE_BUILD_TYPE=Release -DGGML_CUDA=ON -DGGML_RPC=ON -DCMAKE_CUDA_ARCHITECTURES="${CUDA_ARCH}" -DGGML_CUDA_FORCE_CUBLAS=1 -DCMAKE_CUDA_COMPILER=/opt/cuda/bin/nvcc -DCMAKE_INSTALL_RPATH="/opt/cuda/lib;\$ORIGIN" -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON
 RUN cd /build/llama.cpp && nice cmake --build build-cuda/ -j$(nproc)
 
+ADD ./collect_libraries.py /build/collect_libraries.py
+RUN cd /build/llama.cpp/build-rocm && mkdir lib && /build/collect_libraries.py bin/llama-server ./lib/
+RUN cd /build/llama.cpp/build-cuda && mkdir lib && /build/collect_libraries.py bin/llama-server ./lib/
+
 FROM base AS llama-swap-intermediate
 RUN mkdir -p /cache/mesa_shader_cache /cache/mesa_shader_cache_db /cache/radv_builtin_shaders
 RUN chmod -R a+rw /cache
-RUN mkdir /app
+RUN mkdir -p /app/lib
 COPY --from=builder /build/llama-swap/build/llama-swap-linux-amd64 /app/llama-swap
 COPY --from=builder /build/ik_llama.cpp/build/bin/llama-server /app/ikllama-server
 COPY --from=builder /build/llama.cpp/build-vulkan/bin/llama-server /app/llama-server-vulkan
 COPY --from=builder /build/llama.cpp/build-rocm/bin/llama-server /app/llama-server-rocm
+COPY --from=builder /build/llama.cpp/build-rocm/lib/* /app/lib/
 COPY --from=builder /build/llama.cpp/build-cuda/bin/llama-server /app/llama-server-cuda
+COPY --from=builder /build/llama.cpp/build-cuda/lib/* /app/lib/
 RUN ln -s /app/llama-server-vulkan /app/llama-server
 
-RUN mkdir /app/lib
-COPY --from=builder /build/llama.cpp/build-cuda/bin/lib* /app/lib/
-COPY --from=builder /build/llama.cpp/build-rocm/bin/lib* /app/lib/
+COPY --from=builder /build/llama.cpp/build-cuda/lib/* /app/lib/
+COPY --from=builder /build/llama.cpp/build-rocm/lib/* /app/lib/
+ADD ./remove-unnecessary-libs.sh /app/remove-unnecessary-libs.sh
+RUN /app/remove-unnecessary-libs.sh
+RUN rm /app/remove-unnecessary-libs.sh
 ENV LD_LIBRARY_PATH=/app/lib
 
 # Install ZLUDA
-RUN wget https://github.com/vosen/ZLUDA/releases/download/v6-preview.55/zluda-linux-a5ecf6a.tar.gz -O zluda.tar.gz
+RUN wget -q https://github.com/vosen/ZLUDA/releases/download/v6-preview.55/zluda-linux-a5ecf6a.tar.gz -O zluda.tar.gz
 RUN tar xf ./zluda.tar.gz -C /opt/ && rm zluda.tar.gz
 ADD ./llama-server-zluda.sh /app/llama-server-zluda
 
 FROM scratch AS llama-swap
 COPY --from=llama-swap-intermediate / /
 ENV XDG_CACHE_HOME=/cache
-ENV LD_LIBRARY_PATH=/app
+ENV LD_LIBRARY_PATH=/app/lib
 ENTRYPOINT [ "/app/llama-swap", "-config", "/app/config.yaml" ]

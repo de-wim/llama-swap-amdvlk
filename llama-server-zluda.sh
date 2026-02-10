@@ -1,4 +1,4 @@
 #!/bin/bash
-EXPORT LD_LIBRARY_PATH=/app:/opt/zluda:/opt/cuda
+EXPORT LD_LIBRARY_PATH=/opt/zluda:/app/lib
 
 /app/llama-server-cuda "${@}"
