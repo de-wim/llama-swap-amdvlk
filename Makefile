@@ -3,7 +3,7 @@
 #LLAMA_CPP_VERSION = autoparser
 IMAGE_TAG_SUFFIX =
 
-LLAMA_SWAP_VERSION = v189
+LLAMA_SWAP_VERSION = v190
 LLAMA_CPP_REPO ?= https://github.com/ggml-org/llama.cpp
 LLAMA_CPP_VERSION ?= master
 # Add PR numbers for unmerged PRs to include in this build here
@@ -21,7 +21,7 @@ DOCKER_COMMON_ARGS = --build-arg ROCM_ARCH="$(ROCM_ARCH)" --build-arg CUDA_ARCH=
 
 .PHONY: build
 build:
-	$(DOCKER_CMD) build --target=llama-swap --tag quay.io/wvdschel/llama-swap:$(LLAMA_SWAP_VERSION)$(IMAGE_TAG_SUFFIX) $(DOCKER_COMMON_ARGS) .
+	$(DOCKER_CMD) build --target=llama-swap-final --tag quay.io/wvdschel/llama-swap:$(LLAMA_SWAP_VERSION)$(IMAGE_TAG_SUFFIX) $(DOCKER_COMMON_ARGS) .
 	$(DOCKER_CMD) tag quay.io/wvdschel/llama-swap:$(LLAMA_SWAP_VERSION)$(IMAGE_TAG_SUFFIX) quay.io/wvdschel/llama-swap:latest$(IMAGE_TAG_SUFFIX)
 
 .PHONY: publish
