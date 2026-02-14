@@ -1,15 +1,18 @@
 FROM debian:testing AS base
 RUN apt-get update && apt-get dist-upgrade -yy
-RUN apt-get install -yy vulkan-tools libcurlpp0t64 wget
+RUN apt-get install -yy vulkan-tools libcurlpp0t64 wget git
 RUN apt-get clean
 
-FROM base AS builder
+FROM base AS source
+ARG BUILD_TIME
 WORKDIR /build
-RUN apt-get install -yy libvulkan-dev glslc glslang-tools glslang-dev python3-dev build-essential cmake git-lfs libcurlpp-dev git wget golang npm llvm clang ccache
+RUN echo ${BUILD_TIME}
+
+# llama-swap
 ARG LLAMA_SWAP_VERSION
 RUN git clone -b $LLAMA_SWAP_VERSION --single-branch https://github.com/mostlygeek/llama-swap --depth 1
-RUN make -C /build/llama-swap clean linux
 
+# llama.cpp
 ARG LLAMA_CPP_REPO
 ARG LLAMA_CPP_VERSION
 ARG LLAMA_CPP_INCLUDE_PRS
@@ -17,14 +20,33 @@ RUN git clone -b ${LLAMA_CPP_VERSION} ${LLAMA_CPP_REPO} --depth 1
 ADD apply_prs.sh /build/apply_prs.sh
 RUN /build/apply_prs.sh ${LLAMA_CPP_INCLUDE_PRS}
 
-# CPU (ikllama)
+# ikllama
 ARG IKLLAMA_CPP_REPO
 ARG IKLLAMA_CPP_VERSION
 RUN git clone -b ${IKLLAMA_CPP_VERSION} ${IKLLAMA_CPP_REPO} --depth 1
+
+
+FROM base AS builder
+WORKDIR /build
+# Install packages BEFORE copying the source to avoid redownloading everything all the time
+RUN apt-get install -yy libvulkan-dev glslc glslang-tools glslang-dev python3-dev build-essential cmake libcurlpp-dev golang npm llvm clang ccache
+ADD ./rocm.list /etc/apt/sources.list.d/rocm.list
+ADD ./rocm-pin-600 /etc/apt/preferences.d/rocm-pin-600
+ADD ./rocm.gpg /etc/apt/keyrings/rocm.gpg
+RUN apt-get update -yy && apt-get install -yy python3-setuptools python3-wheel rocm rocm-hip-sdk rocm-dev rocwmma-dev
+RUN ln -s /usr/lib/x86_64-linux-gnu/libxml2.so /opt/rocm/lib/libxml2.so.2
+
+# Copy sources
+COPY --from=source /build /build
+
+# Build llama-swap
+RUN make -C /build/llama-swap clean linux
+
+# Build ikllama
 RUN cd /build/ik_llama.cpp && cmake -B build -DCMAKE_INSTALL_PREFIX=/opt/ikllama.cpp -DBUILD_SHARED_LIBS=OFF -DCMAKE_BUILD_TYPE=Release -DGGML_STATIC=ON -DGGML_BLAS=ON -DGGML_BLAS_VENDOR=OpenBLAS -DGGML_RPC=ON -DCMAKE_INSTALL_RPATH="/usr/local/cuda-13.1/lib;\$ORIGIN"
 RUN cd /build/ik_llama.cpp && nice cmake --build build/ -j$(nproc)
 
-# Vulkan
+# Build llama.cpp with Vulkan
 RUN cd /build/llama.cpp && cmake -B build-vulkan -DCMAKE_INSTALL_PREFIX=/opt/llama.cpp -DBUILD_SHARED_LIBS=OFF -DCMAKE_BUILD_TYPE=Release -DGGML_STATIC=ON -DGGML_VULKAN=ON -DGGML_RPC=ON
 RUN cd /build/llama.cpp && nice cmake --build build-vulkan/ -j$(nproc)
 
@@ -32,13 +54,9 @@ ADD ./collect_libraries.py /build/collect_libraries.py
 RUN mkdir /build/lib
 RUN /build/collect_libraries.py /build/llama.cpp/build-vulkan/bin/llama-server /build/lib/
 
-# ROCm
+# Build llama.cpp with ROCm
 FROM builder AS builder-rocm
 ARG ROCM_ARCH
-RUN wget -q https://repo.radeon.com/amdgpu-install/7.1/ubuntu/noble/amdgpu-install_7.1.70100-1_all.deb -O /amdgpu-install.deb
-RUN apt-get install -yy /amdgpu-install.deb && apt-get update
-RUN apt-get install -yy python3-setuptools python3-wheel rocm rocm-hip-sdk rocm-dev rocwmma-dev
-RUN ln -s /usr/lib/x86_64-linux-gnu/libxml2.so /opt/rocm/lib/libxml2.so.2
 RUN cd /build/llama.cpp && cmake -B build-rocm -DCMAKE_INSTALL_PREFIX=/opt/llama.cpp -DCMAKE_BUILD_TYPE=Release -DGGML_HIP=ON -DGPU_TARGETS=${ROCM_ARCH} -DGGML_RPC=ON -DGGML_HIP_ROCWMMA_FATTN=ON
 RUN cd /build/llama.cpp && nice cmake --build build-rocm/ -j$(nproc)
 RUN /build/collect_libraries.py /build/llama.cpp/build-rocm/bin/llama-server   /build/lib/
